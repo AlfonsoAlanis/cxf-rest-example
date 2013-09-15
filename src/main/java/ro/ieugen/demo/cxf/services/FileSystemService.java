@@ -1,8 +1,12 @@
 package ro.ieugen.demo.cxf.services;
 
 import com.google.common.base.Throwables;
+import com.google.common.collect.Lists;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import ro.ieugen.demo.cxf.model.Directory;
+import ro.ieugen.demo.cxf.model.DirectoryResult;
+import ro.ieugen.demo.cxf.model.MyFile;
 
 import javax.ws.rs.Consumes;
 import javax.ws.rs.GET;
@@ -12,10 +16,14 @@ import javax.ws.rs.Produces;
 import javax.ws.rs.WebApplicationException;
 import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
+import java.io.File;
 import java.io.IOException;
+import java.nio.file.DirectoryStream;
+import java.nio.file.Files;
 import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.List;
 
 /**
  * Simple file system service.
@@ -27,8 +35,7 @@ import java.nio.file.Paths;
  * PUT      /path/to/file.txt           - Replace contents of file at path
  * DELETE   /path/to/folder             - Delete folder at path
  */
-@javax.ws.rs.Path("/fs/")
-@Produces(MediaType.APPLICATION_XML)
+@Produces({MediaType.APPLICATION_XML, MediaType.APPLICATION_JSON})
 public class FileSystemService {
 
     private static final Logger LOG = LoggerFactory.getLogger(FileSystemService.class);
@@ -45,8 +52,26 @@ public class FileSystemService {
 
     @GET
     @javax.ws.rs.Path("/home/")
-    public Response getRoot() {
-        return getFile("");
+    public DirectoryResult getRoot() {
+        Path path = getAndValidatePath("");
+
+        try (DirectoryStream<Path> filesAndDirs = Files.newDirectoryStream(path)) {
+
+            final List<MyFile> myFiles = Lists.newArrayList();
+            final List<Directory> directories = Lists.newArrayList();
+
+            for (Path filePath : filesAndDirs) {
+                File associatedFile = filePath.toFile();
+                if (associatedFile.isDirectory()) {
+                    directories.add(Directory.fromFile(associatedFile));
+                } else {
+                    myFiles.add(MyFile.fromFile(associatedFile));
+                }
+            }
+            return new DirectoryResult(directories, myFiles);
+        } catch (IOException e) {
+            throw new WebApplicationException(Response.Status.INTERNAL_SERVER_ERROR);
+        }
     }
 
     @GET
@@ -91,6 +116,5 @@ public class FileSystemService {
 
         return Response.ok().build();
     }
-
 
 }

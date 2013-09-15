@@ -8,12 +8,16 @@ import org.apache.cxf.jaxrs.client.WebClient;
 import org.apache.cxf.jaxrs.lifecycle.SingletonResourceProvider;
 import org.apache.cxf.transport.local.LocalConduit;
 import static org.fest.assertions.api.Assertions.assertThat;
+import org.junit.After;
 import org.junit.AfterClass;
+import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import ro.ieugen.demo.cxf.model.DirectoryResult;
 
+import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
 import java.util.List;
 
@@ -25,6 +29,7 @@ public class FileSystemServiceTest {
     private static final Logger LOG = LoggerFactory.getLogger(FileSystemServiceTest.class);
     private final static String ENDPOINT_ADDRESS = "local://cxf-demo";
     private static Server server;
+    private WebClient client;
 
     @BeforeClass
     public static void initialize() throws Exception {
@@ -48,13 +53,48 @@ public class FileSystemServiceTest {
         server.destroy();
     }
 
+    @Before
+    public void setUp() throws Exception {
+        client = WebClient.create(ENDPOINT_ADDRESS);
+        WebClient.getConfig(client).getRequestContext().put(LocalConduit.DIRECT_DISPATCH, Boolean.TRUE);
+    }
+
+    @After
+    public void tearDown() throws Exception {
+        client.close();
+    }
+
+    @Test
+    public void testGetRootReturnsXmlWithFileAndDirectories() throws Exception {
+        client.accept(MediaType.APPLICATION_XML_TYPE);
+        client.path("/home/");
+        Response response = client.get(Response.class);
+
+        LOG.info("Response is\n{}", response.getEntity().toString());
+
+        assertThat(response.getStatus()).isEqualTo(Response.Status.OK.getStatusCode());
+        assertThat(response.getEntity().toString())
+                .startsWith("<?xml");
+
+        DirectoryResult directoryResult = client.get(DirectoryResult.class);
+        assertThat(directoryResult.getDirectories()).isNotEmpty();
+    }
+
+    @Test
+    public void testGetRootReturnsJsonData() throws Exception {
+        client.accept(MediaType.APPLICATION_JSON_TYPE);
+        client.path("/home/");
+//        Response response = client.get(Response.class);
+//
+//        LOG.info("Response is\n{}", response.getEntity().toString());
+//        assertThat(response.getStatus()).isEqualTo(Response.Status.OK.getStatusCode());
+
+    }
+
     @Test
     public void testGetFileOrDirectory() {
-        WebClient client = WebClient.create(ENDPOINT_ADDRESS);
-        WebClient.getConfig(client).getRequestContext().put(LocalConduit.DIRECT_DISPATCH, Boolean.TRUE);
-
         client.accept("application/*");
-        client.path("/fs/home/classes");
+        client.path("/home/classes");
         Response response = client.get(Response.class);
 
         assertThat(response.getStatus()).isEqualTo(Response.Status.OK.getStatusCode());
