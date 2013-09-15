@@ -39,11 +39,23 @@ import java.util.List;
 public class FileSystemService {
 
     private static final Logger LOG = LoggerFactory.getLogger(FileSystemService.class);
-    private final Path CHROOT;
+    private final Path ROOT;
 
     public FileSystemService() {
+        this("target");
+    }
+
+    public FileSystemService(String rootDirectory) {
         try {
-            this.CHROOT = Paths.get("target").toRealPath(LinkOption.NOFOLLOW_LINKS);
+            this.ROOT = Paths.get(rootDirectory).toRealPath(LinkOption.NOFOLLOW_LINKS);
+            File root = ROOT.toFile();
+            if (!root.exists()) {
+                LOG.info("Creating root dir {}", ROOT.toString());
+                Files.createDirectories(ROOT);
+            } else if (!root.isDirectory()) {
+                LOG.error("Supplied path is a file {}", rootDirectory);
+                throw new IllegalArgumentException("Supplied path is a file " + rootDirectory);
+            }
         } catch (IOException ioe) {
             LOG.error("Exception resolving root directory {}", "target");
             throw Throwables.propagate(ioe);
@@ -54,7 +66,10 @@ public class FileSystemService {
     @javax.ws.rs.Path("/home/")
     public DirectoryResult getRoot() {
         Path path = getAndValidatePath("");
+        return getDirectoryResult(path);
+    }
 
+    private DirectoryResult getDirectoryResult(Path path) {
         try (DirectoryStream<Path> filesAndDirs = Files.newDirectoryStream(path)) {
 
             final List<MyFile> myFiles = Lists.newArrayList();
@@ -79,15 +94,19 @@ public class FileSystemService {
     public Response getFile(@javax.ws.rs.PathParam("path") String path) {
         LOG.info("--- invoke getFile with {}", path);
         Path pathOnDisk = getAndValidatePath(path);
-        return Response.ok(pathOnDisk.toString()).build();
+        if (pathOnDisk.toFile().isDirectory()) {
+            return Response.ok(getDirectoryResult(pathOnDisk)).build();
+        } else {
+            return Response.ok(pathOnDisk.toString()).build();
+        }
     }
 
     private Path getAndValidatePath(String path) {
         Path localPath;
         try {
-            localPath = Paths.get(CHROOT.toString(), path).toRealPath(LinkOption.NOFOLLOW_LINKS);
+            localPath = Paths.get(ROOT.toString(), path).toRealPath(LinkOption.NOFOLLOW_LINKS);
             LOG.info("Path is {}", localPath.toString());
-            return CHROOT.relativize(localPath.toAbsolutePath());
+            return localPath;
         } catch (IOException e) {
             LOG.info("Path not found for {}", path);
             throw new WebApplicationException(Response.Status.BAD_REQUEST);

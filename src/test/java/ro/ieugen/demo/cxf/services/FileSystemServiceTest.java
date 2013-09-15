@@ -7,6 +7,7 @@ import org.apache.cxf.jaxrs.JAXRSServerFactoryBean;
 import org.apache.cxf.jaxrs.client.WebClient;
 import org.apache.cxf.jaxrs.lifecycle.SingletonResourceProvider;
 import org.apache.cxf.transport.local.LocalConduit;
+import org.eclipse.persistence.jaxb.rs.MOXyJsonProvider;
 import static org.fest.assertions.api.Assertions.assertThat;
 import org.junit.After;
 import org.junit.AfterClass;
@@ -28,6 +29,8 @@ public class FileSystemServiceTest {
 
     private static final Logger LOG = LoggerFactory.getLogger(FileSystemServiceTest.class);
     private final static String ENDPOINT_ADDRESS = "local://cxf-demo";
+    private static List<Object> providers = Lists.newArrayList();
+
     private static Server server;
     private WebClient client;
 
@@ -35,9 +38,9 @@ public class FileSystemServiceTest {
     public static void initialize() throws Exception {
         JAXRSServerFactoryBean sf = new JAXRSServerFactoryBean();
         sf.setResourceClasses(FileSystemService.class);
-
-        List<Object> providers = Lists.newArrayList();
         // add custom providers if any
+        providers.add(new MOXyJsonProvider());
+
         sf.setProviders(providers);
 
         sf.setResourceProvider(FileSystemService.class,
@@ -55,7 +58,7 @@ public class FileSystemServiceTest {
 
     @Before
     public void setUp() throws Exception {
-        client = WebClient.create(ENDPOINT_ADDRESS);
+        client = WebClient.create(ENDPOINT_ADDRESS, providers);
         WebClient.getConfig(client).getRequestContext().put(LocalConduit.DIRECT_DISPATCH, Boolean.TRUE);
     }
 
@@ -84,11 +87,13 @@ public class FileSystemServiceTest {
     public void testGetRootReturnsJsonData() throws Exception {
         client.accept(MediaType.APPLICATION_JSON_TYPE);
         client.path("/home/");
-//        Response response = client.get(Response.class);
-//
-//        LOG.info("Response is\n{}", response.getEntity().toString());
-//        assertThat(response.getStatus()).isEqualTo(Response.Status.OK.getStatusCode());
+        Response response = client.get(Response.class);
 
+        LOG.info("Response is\n{}", response.getEntity().toString());
+        assertThat(response.getStatus()).isEqualTo(Response.Status.OK.getStatusCode());
+
+        DirectoryResult directoryResult = client.get(DirectoryResult.class);
+        assertThat(directoryResult.getDirectories()).isNotEmpty();
     }
 
     @Test
